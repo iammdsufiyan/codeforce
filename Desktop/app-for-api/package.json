@@ -1,0 +1,12 @@
+{
+  "name": "app-for-api",
+  "version": "1.0.0",
+  "description": "A Shopify app for API integration",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["shopify", "api"],
+  "author": "",
+  "license": "ISC"
+}

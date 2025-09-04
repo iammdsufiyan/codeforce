@@ -1,0 +1,372 @@
+<style>
+  .hwp-input-group {
+    position: relative;
+    margin-bottom: 1.5rem;
+  }
+  .hwp-input-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+    color: #333;
+  }
+  .hwp-input-group input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 1rem;
+  }
+  .hwp-input-group input[disabled] {
+    background-color: #f1f1f1;
+    cursor: not-allowed;
+    border-style: solid;
+  }
+  .hwp-lock-icon {
+    position: absolute;
+    top: 80%;
+    right: 12px;
+    transform: translateY(-70%);
+    pointer-events: none;
+    display: none;
+    width: 16px;
+    height: 16px;
+  }
+  .hwp-input-group input:disabled ~ .hwp-lock-icon {
+    display: block;
+  }
+  .image-uploader {
+    border: 2px dashed #90a4ae;
+    padding: 2rem;
+    text-align: center;
+    margin-bottom: 1rem;
+    position: relative;
+    background-color: #e3f2fd;
+    color: #0d47a1;
+  }
+  .image-uploader:hover {
+    border-color: #999;
+  }
+  .image-uploader input[type="file"] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .image-preview {
+    margin-top: 1rem;
+    border: 1px solid #ddd;
+  }
+  #preview-canvas-{{ block.id }} {
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+  .add-to-cart-button {
+    background-color: #0d47a1;
+    color: white;
+    padding: 1rem 2rem;
+    border: none;
+    cursor: pointer;
+    font-size: 1rem;
+    width: 100%;
+    margin-top: 1rem;
+  }
+</style>
+
+{%- liquid
+  assign hwp_settings = shop.metafields.custom.height_width_settings.value
+  assign price_rules = hwp_settings.priceRules | default: '[]'
+  assign is_width_locked = false
+  if hwp_settings.lockWidth == true or hwp_settings.lockWidth == 'true' or block.settings.lock_width
+    assign is_width_locked = true
+  endif
+
+  assign is_height_locked = true
+-%}
+
+<div class="height-width-picker">
+  <div class="image-uploader">
+    <input type="file" id="image-upload-{{ block.id }}" accept="image/*">
+    <label for="image-upload-{{ block.id }}">
+      <strong>Drag & drop or click to upload your image</strong>
+    </label>
+  </div>
+
+  <div class="image-preview">
+    <canvas id="preview-canvas-{{ block.id }}"></canvas>
+  </div>
+
+  <div class="hwp-input-group">
+    <label for="width-{{ block.id }}">Width (inches)</label>
+    <input
+      type="number"
+      id="width-{{ block.id }}"
+      value="{{ hwp_settings.defaultWidth | default: block.settings.default_width | default: 22 }}"
+      {% if is_width_locked %}disabled{% endif %}
+    >
+    <svg class="hwp-lock-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" />
+    </svg>
+  </div>
+
+  <div class="hwp-input-group">
+    <label for="height-{{ block.id }}">Height (feet)</label>
+    <input
+      type="number"
+      id="height-{{ block.id }}"
+      value="{{ hwp_settings.priceRules[0].height | default: block.settings.default_height | default: 2 }}"
+      disabled
+    >
+     <svg class="hwp-lock-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+      <path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" />
+    </svg>
+  </div>
+
+  <div class="price-display">
+    <strong>Price:</strong> <span id="calculated-price-{{ block.id }}">$0.00</span>
+  </div>
+
+<form method="post" action="/cart/add" id="product-form-{{ block.id }}">
+  <input type="hidden" name="id" value="{{ product.selected_or_first_available_variant.id }}">
+  <input type="hidden" name="properties[Width]" id="hidden-width-{{ block.id }}" value="{{ hwp_settings.defaultWidth | default: block.settings.default_width | default: 22 }}">
+  <input type="hidden" name="properties[Height]" id="hidden-height-{{ block.id }}" value="{{ hwp_settings.priceRules[0].height | default: block.settings.default_height | default: 2 }}">
+  <input type="hidden" name="properties[_price]" id="hidden-price-{{ block.id }}" value="">
+  <input type="hidden" name="properties[Final Price]" id="hidden-final-price-{{ block.id }}" value="">
+  <button type="submit" class="add-to-cart-button">Add to cart</button>
+</form>
+</div>
+
+<script>
+  const priceRules = {{ shop.metafields.custom.height_width_settings.value.priceRules | json }};
+
+  document.addEventListener('DOMContentLoaded', function() {
+    const blockId = '{{ block.id }}';
+    const imageUpload = document.getElementById(`image-upload-${blockId}`);
+    const canvas = document.getElementById(`preview-canvas-${blockId}`);
+    const ctx = canvas.getContext('2d');
+    const widthInput = document.getElementById(`width-${blockId}`);
+    const heightInput = document.getElementById(`height-${blockId}`);
+    const priceDisplay = document.getElementById(`calculated-price-${blockId}`);
+    const hiddenWidthInput = document.getElementById(`hidden-width-${blockId}`);
+    const hiddenHeightInput = document.getElementById(`hidden-height-${blockId}`);
+    const hiddenPriceInput = document.getElementById(`hidden-price-${blockId}`);
+    const productForm = document.getElementById(`product-form-${blockId}`);
+
+    const fixedWidthInches = parseFloat(widthInput.value);
+    const dpi = 300;
+
+    // Allowed height slabs in feet
+    const heightSlabsInches = priceRules.map(rule => {
+      if (rule.unit === 'ft') {
+        return parseFloat(rule.height) * 12;
+      }
+      return parseFloat(rule.height);
+    });
+
+    imageUpload.addEventListener('change', handleImageUpload);
+
+    // Initial price update
+    updatePrice(parseFloat(heightInput.value));
+
+    function handleImageUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          processImage(img);
+        }
+        img.src = e.target.result;
+      }
+      reader.readAsDataURL(file);
+    }
+
+    function processImage(img) {
+      const aspectRatio = img.width / img.height;
+      const scaledHeightInches = fixedWidthInches / aspectRatio;
+
+      let requiredHeightInches = 12; // Default to 1ft
+      for (const slabInches of heightSlabsInches) {
+        if (scaledHeightInches <= slabInches) {
+          requiredHeightInches = slabInches;
+          break;
+        }
+      }
+      
+      // If the required height is larger than the largest slab, use the largest slab
+      if (heightSlabsInches.length > 0 && scaledHeightInches > heightSlabsInches[heightSlabsInches.length - 1]) {
+        requiredHeightInches = heightSlabsInches[heightSlabsInches.length - 1];
+      }
+
+      const requiredHeightFeet = requiredHeightInches / 12;
+      heightInput.value = requiredHeightFeet.toFixed(2);
+      hiddenWidthInput.value = fixedWidthInches;
+      hiddenHeightInput.value = requiredHeightFeet.toFixed(2);
+
+      updatePrice(requiredHeightFeet);
+      drawPreview(img, fixedWidthInches, requiredHeightInches);
+    }
+
+    // Add this helper function to update price
+    function updateCartPrice(cartItem, newPrice) {
+      return fetch('/cart/change.js', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          id: cartItem.key,
+          properties: {
+            ...cartItem.properties,
+            '_original_price': cartItem.original_price,
+            '_final_price': newPrice * 100
+          }
+        })
+      }).then(res => res.json());
+    }
+
+    // Update the updatePrice function to include price calculation
+    function updatePrice(heightFeet) {
+      try {
+        const heightInches = heightFeet * 12;
+        let price = null;
+
+        // Sort rules by height ascending
+        const sortedRules = [...priceRules].sort((a, b) => {
+          const heightA = a.unit === 'ft' ? parseFloat(a.height) * 12 : parseFloat(a.height);
+          const heightB = b.unit === 'ft' ? parseFloat(b.height) * 12 : parseFloat(b.height);
+          return heightA - heightB;
+        });
+
+        // Find matching price rule
+        for (const rule of sortedRules) {
+          const ruleHeightInches = rule.unit === 'ft' ? parseFloat(rule.height) * 12 : parseFloat(rule.height);
+          if (heightInches <= ruleHeightInches) {
+            price = parseFloat(rule.price);
+            break;
+          }
+        }
+
+        if (price !== null) {
+          priceDisplay.textContent = `$${price.toFixed(2)}`;
+          hiddenPriceInput.value = price.toFixed(2);
+          document.getElementById(`hidden-final-price-${blockId}`).value = price.toFixed(2);
+          
+          // Update form action with price
+          const formAction = productForm.getAttribute('action');
+          productForm.setAttribute('action', formAction.split('?')[0] + `?price=${price * 100}`);
+        } else {
+          priceDisplay.textContent = 'Price not available';
+        }
+      } catch (error) {
+        console.error('Price calculation error:', error);
+        priceDisplay.textContent = 'Price calculation error';
+      }
+    }
+
+    function drawPreview(img, canvasWidthInches, canvasHeightInches) {
+      const previewDpi = 72;
+      const aspectRatio = img.width / img.height;
+      
+      const canvasWidth = canvasWidthInches * previewDpi;
+      const scaledHeight = canvasWidth / aspectRatio;
+
+      canvas.width = canvasWidth;
+      canvas.height = scaledHeight; // Set canvas height to match scaled image height
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, scaledHeight);
+    }
+
+    // Add form submission handler
+    productForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      const finalPrice = document.getElementById(`hidden-final-price-${blockId}`).value;
+      const variantId = this.querySelector('input[name="id"]').value;
+      
+      // Create the cart item data with selling_plan data
+      const data = {
+        items: [{
+          id: variantId,
+          quantity: 1,
+          properties: {
+            'Width': widthInput.value,
+            'Height': heightInput.value,
+            'Custom_Price': finalPrice
+          }
+        }]
+      };
+
+      // Add to cart using fetch
+      fetch(window.Shopify.routes.root + 'cart/add.js', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify(data)
+      })
+      .then(response => response.json())
+      .then(result => {
+        if (result.status === 422) {
+          throw new Error(result.description);
+        }
+        
+        // Refresh mini cart or redirect to cart page
+        if (typeof window.refreshMiniCart === 'function') {
+          window.refreshMiniCart();
+        } else {
+          window.location.href = window.Shopify.routes.root + 'cart';
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('Failed to add to cart. Please try again.');
+      });
+    });
+  });
+</script>
+
+{% schema %}
+{
+  "name": "Height and Width Picker",
+  "target": "section",
+  "settings": [
+    {
+      "type": "number",
+      "id": "default_width",
+      "label": "Default width (inches)",
+      "default": 22
+    },
+    {
+      "type": "number",
+      "id": "default_height",
+      "label": "Default height (feet)",
+      "default": 2
+    },
+    {
+      "type": "checkbox",
+      "id": "lock_width",
+      "label": "Lock width",
+      "default": true
+    },
+    {
+      "type": "checkbox",
+      "id": "lock_height",
+      "label": "Lock height",
+      "default": false
+    },
+    {
+      "type": "url",
+      "id": "image_url",
+      "label": "Image URL"
+    }
+  ]
+}
+{% endschema %}

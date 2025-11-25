@@ -1,0 +1,80 @@
+from collections import deque
+
+# Read input
+R, C = map(int, input().split())
+M = int(input())
+
+grid = []
+for _ in range(M):
+    grid.append(input().split())
+
+colors_present = input().split()
+points_list = list(map(int, input().split()))
+color_points = {color: p for color, p in zip(colors_present, points_list)}
+
+N = int(input())  # Shooter start column
+K = int(input())  # Number of bounces
+
+# Pad grid to full R rows (bottom rows are empty)
+while len(grid) < R:
+    grid.append(['.'] * C)
+
+# Directions for movement: 45-degree angles
+# dx = column change, dy = row change (row 0 = bottom)
+directions = [(-1, 1), (1, 1), (-1, -1), (1, -1)]  # up-left, up-right, down-left, down-right
+
+bonus_points = 0
+
+# BFS to find connected bubbles of same color
+def find_connected(x, y, color, visited):
+    q = deque()
+    q.append((x, y))
+    connected = set()
+    connected.add((x, y))
+    visited.add((x, y))
+    while q:
+        cx, cy = q.popleft()
+        for nx, ny in [(cx-1, cy), (cx+1, cy), (cx, cy-1), (cx, cy+1)]:
+            if 0 <= nx < C and 0 <= ny < R and (nx, ny) not in visited:
+                if grid[ny][nx] == color:
+                    visited.add((nx, ny))
+                    connected.add((nx, ny))
+                    q.append((nx, ny))
+    return connected
+
+# BFS for dependent bubbles
+def find_dependents(connected):
+    dependents = set()
+    for x, y in connected:
+        # Check below (y-1)
+        if y > 0:
+            below_color = grid[y-1][x]
+            if below_color != '.' and (x, y-1) not in connected:
+                dependents.add((x, y-1))
+        # Check horizontal neighbors same color
+        for nx in [x-1, x+1]:
+            if 0 <= nx < C:
+                neighbor_color = grid[y][nx]
+                if neighbor_color != '.' and neighbor_color == grid[y][x] and (nx, y) not in connected:
+                    dependents.add((nx, y))
+    return dependents
+
+# Simple simulation of K bounces (not precise trajectory, but to compute bonus)
+for bounce in range(K):
+    # Find first bubble in column N from bottom
+    for row in range(R-1, -1, -1):
+        if grid[row][N] != '.':
+            target_color = grid[row][N]
+            visited = set()
+            connected = find_connected(N, row, target_color, visited)
+            dependents = find_dependents(connected)
+            # Compute bonus points: only dependent bubbles of different color
+            for dx, dy in dependents:
+                if grid[dy][dx] != target_color:
+                    bonus_points += color_points.get(grid[dy][dx], 0)
+            # Remove popped bubbles
+            for x, y in connected | dependents:
+                grid[y][x] = '.'
+            break  # Only one bubble hit per bounce
+
+print(bonus_points)

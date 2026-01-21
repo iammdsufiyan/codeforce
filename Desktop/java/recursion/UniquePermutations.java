@@ -40,7 +40,7 @@
 // }
 
 import java.util.*;
-
+import java.util.Scanner;
 // public class UniquePermutations {
 
 //     public static void main(String [] args){
@@ -100,3 +100,5 @@ public class UniquePermutations {
         }
     }
 }
+
+

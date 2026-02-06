@@ -18,7 +18,7 @@ public class TestClass {
                     num /= 10;
                 }
             }
-            sum += max;
+            sum  = sum +max;
         }
         return sum;
     }

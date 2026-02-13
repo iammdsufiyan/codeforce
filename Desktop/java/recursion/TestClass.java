@@ -31,5 +31,6 @@ public class TestClass {
             arr[i] = sc.nextInt();
         }
         System.out.println(findMaxDigitsSum(size, arr));
+        System.out.println(findMaxDigitsSum(size, arr));
     }
 }
